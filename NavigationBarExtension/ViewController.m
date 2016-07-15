@@ -8,6 +8,12 @@
 
 #import "ViewController.h"
 
+#define AccelerateLimit     100
+
+#define AnimationTime       0.2
+
+#define DefaultDeltaTime    0.5
+
 @interface ViewController ()<UITableViewDelegate, UITableViewDataSource>
 
 @property (nonatomic, strong) UINavigationBar *navigationBar;
@@ -20,6 +26,10 @@
 
 @property (nonatomic, assign) CGFloat currOffsetY;
 
+@property (nonatomic, assign) NSTimeInterval preScrollTime;
+
+@property (nonatomic, assign) NSTimeInterval currScrollTime;
+
 @property (nonatomic, assign) CGFloat width;
 
 @property (nonatomic, assign) CGFloat height;
@@ -29,6 +39,8 @@
 @property (nonatomic, assign) CGFloat playerHeight;
 
 @property (nonatomic, assign) CGFloat extensionHeight;
+
+@property (nonatomic, assign) CGFloat statusBarHeight;
 
 @property (nonatomic, assign) BOOL isShow;
 
@@ -46,11 +58,15 @@
     
     self.preOffsetY = self.currOffsetY = 0.0f;
     
+    self.preScrollTime = self.currScrollTime = 0.0f;
+    
     self.isShow = YES;
     
     self.isEndDragged = YES;
     
     self.isAnimation = NO;
+    
+    self.statusBarHeight = [[UIApplication sharedApplication] statusBarFrame].size.height;
     
     self.width = self.view.frame.size.width;
     self.height = self.view.frame.size.height;
@@ -58,17 +74,16 @@
     self.playerHeight = _width * 9 / 16;
     self.extensionHeight = _width * 9 / 16;
 
-    self.dataSourceList = [[UITableView alloc] initWithFrame:CGRectMake(0, _navBarHeight + 20, _width, _height - _navBarHeight - 20) style:UITableViewStylePlain];
-    [self.dataSourceList setContentInset:UIEdgeInsetsMake(_playerHeight, 0, 0, 0)];
+    self.dataSourceList = [[UITableView alloc] initWithFrame:CGRectMake(0, _navBarHeight + _playerHeight + _statusBarHeight, _width, _height - _navBarHeight - _playerHeight - _statusBarHeight) style:UITableViewStylePlain];
     self.dataSourceList.delegate = self;
     self.dataSourceList.dataSource = self;
     [self.view addSubview:self.dataSourceList];
     
-    self.playerView = [[UIView alloc] initWithFrame:CGRectMake(0, _navBarHeight + 20, _width, _playerHeight)];
+    self.playerView = [[UIView alloc] initWithFrame:CGRectMake(0, _navBarHeight + _statusBarHeight, _width, _playerHeight)];
     [self.playerView setBackgroundColor:[UIColor redColor]];
     [self.view addSubview:self.playerView];
     
-    self.navigationBar = [[UINavigationBar alloc] initWithFrame:CGRectMake(0, 0, _width, _navBarHeight + 20)];
+    self.navigationBar = [[UINavigationBar alloc] initWithFrame:CGRectMake(0, 0, _width, _navBarHeight + _statusBarHeight)];
     [self.navigationBar setBackgroundColor:[UIColor greenColor]];
     [self.view addSubview:self.navigationBar];
 
@@ -86,7 +101,7 @@
 
 -(NSInteger) tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     
-    return 20;
+    return 30;
 }
 
 -(UITableViewCell *) tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
@@ -99,6 +114,8 @@
 -(void) scrollViewWillBeginDragging:(UIScrollView *)scrollView {
     
     self.isEndDragged = NO;
+    
+    self.preScrollTime = self.currScrollTime = [[NSDate date] timeIntervalSince1970];
 }
 -(void) scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
     
@@ -110,7 +127,7 @@
             
             self.playerView.frame = CGRectMake(0, _navBarHeight - _playerHeight, _width, _playerHeight);
             
-//            self.dataSourceList.frame = CGRectMake(0, _navBarHeight + 20, _width, _height - _navBarHeight - 20);
+            self.dataSourceList.frame = CGRectMake(0, _navBarHeight + _statusBarHeight, _width, _height - _navBarHeight - _statusBarHeight);
             
             self.extensionHeight = 0;
             
@@ -126,11 +143,11 @@
                 
                 dispatch_async(dispatch_get_main_queue(), ^{
                     
-                    [UIView animateWithDuration:0.2 animations:^{
+                    [UIView animateWithDuration:AnimationTime animations:^{
                         
-                        self.playerView.frame = CGRectMake(0, _navBarHeight + 20, _width, _playerHeight);
+                        self.playerView.frame = CGRectMake(0, _navBarHeight + _statusBarHeight, _width, _playerHeight);
                         
-//                        self.dataSourceList.frame = CGRectMake(0, _navBarHeight + 20 + _playerHeight, _width, _height - _navBarHeight - 20 - _playerHeight);
+                        self.dataSourceList.frame = CGRectMake(0, _navBarHeight + _statusBarHeight + _playerHeight, _width, _height - _navBarHeight - _statusBarHeight - _playerHeight);
                         
                     } completion:^(BOOL finished) {
                         
@@ -148,39 +165,40 @@
 
 -(void) scrollViewDidScroll:(UIScrollView *)scrollView {
 
-    CGFloat offsetY = scrollView.contentOffset.y +  _playerHeight;
+    CGFloat offsetY = scrollView.contentOffset.y;
     
     float scrollViewTopY = offsetY + scrollView.bounds.size.height - scrollView.contentInset.bottom;
-    float scrollViewHeight = scrollView.contentSize.height + _playerHeight;
+    float scrollViewHeight = scrollView.contentSize.height ;
     
     self.currOffsetY = offsetY;
     
-    CGFloat delta = self.currOffsetY - self.preOffsetY;
-
-    NSLog(@"delta = %f", delta);
-//
-//    NSLog(@"scrollViewTopY = %f", scrollViewTopY);
-//    
-//    NSLog(@"scrollViewHeight = %f", scrollViewHeight);
-//    
-//    NSLog(@"offsetY = %f", offsetY);
+    self.currScrollTime = [[NSDate date] timeIntervalSince1970];
+    
+    CGFloat deltaY = self.currOffsetY - self.preOffsetY;
+    CGFloat deltaTime = self.currScrollTime - self.preScrollTime;
+    
+    if (deltaTime <= DefaultDeltaTime) {
+        
+        deltaTime = DefaultDeltaTime;
+    }
+    
+    CGFloat acceleration = (2 * deltaY) / powf(deltaTime, 2);
     
     if (scrollViewTopY >= scrollViewHeight && offsetY > _playerHeight) {
         
-
         ViewController *__weak selfObj = self;
         
-        if (_isAnimation == NO && _isShow == YES) {
+        if (_isAnimation == NO && _isShow == YES && _isEndDragged == YES) {
             
             _isAnimation = YES;
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 
-                [UIView animateWithDuration:0.1 animations:^{
+                [UIView animateWithDuration:AnimationTime animations:^{
                     
                     self.playerView.frame = CGRectMake(0, _navBarHeight - _playerHeight, _width, _playerHeight);
                     
-//                    self.dataSourceList.frame = CGRectMake(0, _navBarHeight + 20, _width, _height - _navBarHeight - 20);
+                    self.dataSourceList.frame = CGRectMake(0, _navBarHeight + _statusBarHeight, _width, _height - _navBarHeight - _statusBarHeight);
                     
                 } completion:^(BOOL finished) {
                     
@@ -192,9 +210,6 @@
     }
     else if(offsetY <= 0) {
         
-        self.playerView.frame = CGRectMake(0, _navBarHeight + 20, _width, _playerHeight);
-        
-        /*
         ViewController *__weak selfObj = self;
         
         if (_isAnimation == NO && _isShow == NO) {
@@ -203,24 +218,26 @@
             
             dispatch_async(dispatch_get_main_queue(), ^{
                 
-                [UIView animateWithDuration:0.1 animations:^{
+                [UIView animateWithDuration:AnimationTime animations:^{
                     
-                    self.playerView.frame = CGRectMake(0, _navBarHeight + 20, _width, _playerHeight);
+                    self.playerView.frame = CGRectMake(0, _navBarHeight + _statusBarHeight, _width, _playerHeight);
                     
-//                    self.dataSourceList.frame = CGRectMake(0, _navBarHeight + 20 + _playerHeight, _width, _height - _navBarHeight - 20 - _playerHeight);
+                    self.dataSourceList.frame = CGRectMake(0, _navBarHeight + _statusBarHeight + _playerHeight, _width, _height - _navBarHeight - _statusBarHeight - _playerHeight);
                     
                 } completion:^(BOOL finished) {
                     
                     selfObj.isAnimation = NO;
-                    selfObj.isShow = YES;
+                    
+                    self.extensionHeight = _playerHeight;
+                    
+                    self.isShow = YES;
                 }];
             });
         }
-         */
     }
     else {
         
-        if(delta < 0 && _isShow == NO) {
+        if(deltaY < 0 && _isShow == NO && fabs(acceleration) > AccelerateLimit) {
             
             ViewController *__weak selfObj = self;
             
@@ -230,11 +247,11 @@
                 
                 dispatch_async(dispatch_get_main_queue(), ^{
                     
-                    [UIView animateWithDuration:0.2 animations:^{
+                    [UIView animateWithDuration:AnimationTime animations:^{
                         
-                        self.playerView.frame = CGRectMake(0, _navBarHeight + 20, _width, _playerHeight);
+                        self.playerView.frame = CGRectMake(0, _navBarHeight + _statusBarHeight, _width, _playerHeight);
                         
-//                        self.dataSourceList.frame = CGRectMake(0, _navBarHeight + 20 + _playerHeight, _width, _height - _navBarHeight - 20 - _playerHeight);
+                        self.dataSourceList.frame = CGRectMake(0, _navBarHeight + _statusBarHeight + _playerHeight, _width, _height - _navBarHeight - _statusBarHeight - _playerHeight);
                         
                     } completion:^(BOOL finished) {
                         
@@ -249,32 +266,53 @@
         }
         else if (_extensionHeight > 0 || _isEndDragged == NO) {
             
-            if (delta > 0) {
+            if (deltaY > 0) {
                 
                 CGRect playerRect = self.playerView.frame;
-                playerRect.origin.y -= delta;
+                playerRect.origin.y -= deltaY;
                 
                 self.playerView.frame = playerRect;
                 
-                self.extensionHeight -= delta;
-
+                CGRect listRect = self.dataSourceList.frame;
+                listRect.origin.y -= deltaY;
+                listRect.size.height += deltaY;
+                
+                self.dataSourceList.frame = listRect;
+                
+                self.extensionHeight = (self.extensionHeight - deltaY) < 0 ? 0 : self.extensionHeight - deltaY;
             }
             else {
                 
-                if (self.extensionHeight < _playerHeight) {
-                
+                if ((self.extensionHeight < _playerHeight && _isShow == YES) || offsetY <= _playerHeight) {
+                    
                     CGRect playerRect = self.playerView.frame;
-                    playerRect.origin.y -= delta;
+                    playerRect.origin.y -= deltaY;
+                    
+                    if (playerRect.origin.y > _navBarHeight + _statusBarHeight) {
+                        
+                        playerRect.origin.y = _navBarHeight + _statusBarHeight;
+                    }
                     
                     self.playerView.frame = playerRect;
                     
-                    self.extensionHeight -= delta;
+                    CGRect listRect = self.dataSourceList.frame;
+                    
+                    if (listRect.size.height >  _height - _navBarHeight - _statusBarHeight - _playerHeight) {
+                    
+                        listRect.origin.y -= deltaY;
+                        listRect.size.height += deltaY;
+                    }
+                    
+                    self.dataSourceList.frame = listRect;
+                    
+                    self.extensionHeight = (self.extensionHeight - deltaY) < 0 ? 0 : self.extensionHeight - deltaY;
                 }
             }
         }
     }
 
     self.preOffsetY = self.currOffsetY;
+    self.preScrollTime = self.currScrollTime;
 }
 
 @end
