@@ -117,6 +117,7 @@
     
     self.preScrollTime = self.currScrollTime = [[NSDate date] timeIntervalSince1970];
 }
+
 -(void) scrollViewDidEndDragging:(UIScrollView *)scrollView willDecelerate:(BOOL)decelerate {
     
     self.isEndDragged = YES;
